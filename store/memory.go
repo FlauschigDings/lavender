@@ -8,8 +8,8 @@ import (
 
 // InMemoryEventStore is a thread-safe, in-memory store for events and snapshots.
 type InMemoryEventStore[E lavender.Event, S lavender.Snapshot] struct {
-	events    sync.Map // Store events as map[lavender.Name][]E
-	snapshots sync.Map // Store snapshots as map[lavender.Name]S
+	Events    sync.Map // Store events as map[lavender.Name][]E
+	Snapshots sync.Map // Store snapshots as map[lavender.Name]S
 }
 
 // Ensure InMemoryEventStore implements both EventStore and SnapshotStore interfaces.
@@ -28,7 +28,7 @@ func NewInMemoryCustomStore[E lavender.Event, S lavender.Snapshot]() *InMemoryEv
 
 // SaveEvents appends new events to the aggreagate's event store.
 func (store *InMemoryEventStore[E, S]) SaveEvents(aggregate lavender.CustomAggregate[E, S], events []E) error {
-	existing, _ := store.events.Load(aggregate.Name())
+	existing, _ := store.Events.Load(aggregate.Name())
 
 	var eventList []E
 	if existing != nil {
@@ -36,13 +36,13 @@ func (store *InMemoryEventStore[E, S]) SaveEvents(aggregate lavender.CustomAggre
 	}
 	eventList = append(eventList, events...)
 
-	store.events.Store(aggregate.Name(), eventList)
+	store.Events.Store(aggregate.Name(), eventList)
 	return nil
 }
 
 // LoadEvents retrieves all stored events from a aggregate.
 func (store *InMemoryEventStore[E, S]) LoadEvents(aggregate lavender.CustomAggregate[E, S]) ([]E, error) {
-	existing, ok := store.events.Load(aggregate.Name())
+	existing, ok := store.Events.Load(aggregate.Name())
 	if !ok {
 		return nil, nil
 	}
@@ -51,13 +51,13 @@ func (store *InMemoryEventStore[E, S]) LoadEvents(aggregate lavender.CustomAggre
 
 // SaveSnapshot stores a snapshot of the aggregate.
 func (store *InMemoryEventStore[E, S]) SaveSnapshot(aggregate lavender.CustomAggregate[E, S], snapshot S) error {
-	store.snapshots.Store(aggregate.Name(), snapshot)
+	store.Snapshots.Store(aggregate.Name(), snapshot)
 	return nil
 }
 
 // LoadSnapshot retrieves the last snapshot of the aggregate.
 func (store *InMemoryEventStore[E, S]) LoadSnapshot(aggregate lavender.CustomAggregate[E, S]) (*S, error) {
-	existing, ok := store.snapshots.Load(aggregate.Name())
+	existing, ok := store.Snapshots.Load(aggregate.Name())
 	if !ok {
 		return nil, nil
 	}
@@ -67,6 +67,6 @@ func (store *InMemoryEventStore[E, S]) LoadSnapshot(aggregate lavender.CustomAgg
 
 // ClearEvents removes all stored events from a aggregate.
 func (store *InMemoryEventStore[E, S]) ClearEvents(aggregate lavender.CustomAggregate[E, S]) error {
-	store.events.Store(aggregate.Name(), []E{})
+	store.Events.Store(aggregate.Name(), []E{})
 	return nil
 }

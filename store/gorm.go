@@ -53,8 +53,8 @@ var _ EventStore[lavender.Event, lavender.Snapshot] = new(GormStore[lavender.Eve
 
 // GormStore provides database-backed event and snapshot storage.
 type GormStore[E lavender.Event, S lavender.Snapshot] struct {
-	encoder          encoders.Encoder
-	db               *gorm.DB
+	Encoder          encoders.Encoder
+	Db               *gorm.DB
 	eventRegister    map[lavender.EventIdentifier]E
 	snapshotRegister map[lavender.Name]S
 }
@@ -67,8 +67,8 @@ func NewGormStore(db *gorm.DB) *GormStore[lavender.Event, lavender.Snapshot] {
 // NewGormCustomStore initializes a GormStore with a custom encoder.
 func NewGormCustomStore[E lavender.Event, S lavender.Snapshot](db *gorm.DB, encoder encoders.Encoder) *GormStore[E, S] {
 	return &GormStore[E, S]{
-		encoder:          encoder,
-		db:               db,
+		Encoder:          encoder,
+		Db:               db,
 		eventRegister:    make(map[lavender.EventIdentifier]E),
 		snapshotRegister: make(map[lavender.Name]S),
 	}
@@ -87,7 +87,7 @@ func (store *GormStore[E, S]) RegisterAggregates(aggregates ...lavender.CustomAg
 func (store *GormStore[E, S]) RegisterEvent(aggregate lavender.CustomAggregate[E, S], events ...E) *GormStore[E, S] {
 	for _, event := range events {
 		store.eventRegister[lavender.EventId(aggregate.Name(), event.Name())] = event
-		store.db.Table(EventTableName(aggregate.Name())).AutoMigrate(new(Event))
+		store.Db.Table(EventTableName(aggregate.Name())).AutoMigrate(new(Event))
 	}
 	return store
 }
@@ -96,21 +96,21 @@ func (store *GormStore[E, S]) RegisterEvent(aggregate lavender.CustomAggregate[E
 func (store *GormStore[E, S]) RegisterSnapshot(snapshots ...S) *GormStore[E, S] {
 	for _, snapshot := range snapshots {
 		store.snapshotRegister[snapshot.AggregateID()] = snapshot
-		store.db.Table(SnapshotTableName(snapshot.AggregateID())).AutoMigrate(new(Snapshot))
+		store.Db.Table(SnapshotTableName(snapshot.AggregateID())).AutoMigrate(new(Snapshot))
 	}
 	return store
 }
 
 // ClearEvents removes all events for an aggregate from the database.
 func (store *GormStore[E, S]) ClearEvents(aggregate lavender.CustomAggregate[E, S]) error {
-	return store.db.Table(EventTableName(aggregate.Name())).Where("name = ? AND version = ?", aggregate.Name(), aggregate.Version()).Delete(&Event{}).Error
+	return store.Db.Table(EventTableName(aggregate.Name())).Where("name = ? AND version = ?", aggregate.Name(), aggregate.Version()).Delete(&Event{}).Error
 }
 
 // LoadEvents retrieves all events for an aggregate from the database.
 func (store *GormStore[E, S]) LoadEvents(aggregate lavender.CustomAggregate[E, S]) (events []E, err error) {
 	var readedEvents []Event
 
-	if err := store.db.Table(EventTableName(aggregate.Name())).Where("name = ? AND version = ?", aggregate.Name(), aggregate.Version()).Find(&readedEvents).Error; err != nil {
+	if err := store.Db.Table(EventTableName(aggregate.Name())).Where("name = ? AND version = ?", aggregate.Name(), aggregate.Version()).Find(&readedEvents).Error; err != nil {
 		return nil, err
 	}
 	for _, eventData := range readedEvents {
@@ -120,7 +120,7 @@ func (store *GormStore[E, S]) LoadEvents(aggregate lavender.CustomAggregate[E, S
 		}
 
 		eventcp := clone.Clone(event).(E)
-		if err := store.encoder.Unmarshal([]byte(eventData.Event), eventcp); err != nil {
+		if err := store.Encoder.Unmarshal([]byte(eventData.Event), eventcp); err != nil {
 			return nil, err
 		}
 		events = append(events, eventcp)
@@ -130,9 +130,9 @@ func (store *GormStore[E, S]) LoadEvents(aggregate lavender.CustomAggregate[E, S
 
 // SaveEvents stores multiple events for an aggregate within a database transaction.
 func (store *GormStore[E, S]) SaveEvents(aggregate lavender.CustomAggregate[E, S], events []E) error {
-	return store.db.Transaction(func(tx *gorm.DB) error {
+	return store.Db.Transaction(func(tx *gorm.DB) error {
 		for _, event := range events {
-			encodedData, err := store.encoder.Marshal(event)
+			encodedData, err := store.Encoder.Marshal(event)
 			if err != nil {
 				return err
 			}
@@ -156,7 +156,7 @@ func (store *GormStore[E, S]) SaveEvents(aggregate lavender.CustomAggregate[E, S
 func (store *GormStore[E, S]) LoadSnapshot(aggregate lavender.CustomAggregate[E, S]) (*S, error) {
 	var snapshotData Snapshot
 
-	tx := store.db.Table(SnapshotTableName(aggregate.Name())).Where("name = ? AND version = ?", aggregate.Name(), aggregate.Version()).Order("created_at DESC").First(&snapshotData)
+	tx := store.Db.Table(SnapshotTableName(aggregate.Name())).Where("name = ? AND version = ?", aggregate.Name(), aggregate.Version()).Order("created_at DESC").First(&snapshotData)
 
 	if tx.RowsAffected == 0 {
 		return nil, nil
@@ -170,7 +170,7 @@ func (store *GormStore[E, S]) LoadSnapshot(aggregate lavender.CustomAggregate[E,
 	}
 
 	// copy := clone.Clone(snapshot).(*S)
-	if err := store.encoder.Unmarshal([]byte(snapshotData.Snapshot), snapshot); err != nil {
+	if err := store.Encoder.Unmarshal([]byte(snapshotData.Snapshot), snapshot); err != nil {
 		return nil, err
 	}
 	return &snapshot, nil
@@ -178,11 +178,11 @@ func (store *GormStore[E, S]) LoadSnapshot(aggregate lavender.CustomAggregate[E,
 
 // SaveSnapshot stores a snapshot of an aggregate's state.
 func (store *GormStore[E, S]) SaveSnapshot(aggregate lavender.CustomAggregate[E, S], snapshot S) error {
-	encodedData, err := store.encoder.Marshal(snapshot)
+	encodedData, err := store.Encoder.Marshal(snapshot)
 	if err != nil {
 		return err
 	}
-	return store.db.Table(SnapshotTableName(aggregate.Name())).Create(&Snapshot{
+	return store.Db.Table(SnapshotTableName(aggregate.Name())).Create(&Snapshot{
 		CreatedAt: time.Now(),
 		Version:   aggregate.Version(),
 		Name:      aggregate.Name(),
